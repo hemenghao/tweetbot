@@ -7,6 +7,14 @@ const getNumber = (value: string | undefined, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const getBoolean = (value: string | undefined, fallback: boolean): boolean => {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  return value === 'true';
+};
+
 export const config = {
   port: getNumber(process.env.PORT, 4000),
   mongodbUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/twitter_monitor',
@@ -18,6 +26,10 @@ export const config = {
     webhookUrl: process.env.NOTIFICATION_WEBHOOK_URL,
     email: process.env.NOTIFICATION_EMAIL,
     queueTopic: process.env.NOTIFICATION_QUEUE_TOPIC,
+  },
+  redis: {
+    url: process.env.REDIS_URL,
+    tls: getBoolean(process.env.REDIS_TLS, false),
   },
 };
 

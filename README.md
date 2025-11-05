@@ -54,6 +54,10 @@ TWITTER_API_KEY=new1_a673049ed1974ff9b44e931b549ec515
 # Optional: force mock data instead of live API calls
 TWITTER_USE_MOCK=true
 
+# Redis connection string (required for stream processing helpers)
+REDIS_URL=redis://127.0.0.1:6379
+# REDIS_TLS=true
+
 # Optional notification integrations
 # NOTIFICATION_WEBHOOK_URL=https://example.com/webhook
 ```
@@ -73,6 +77,16 @@ This will:
 3. Bootstrap the seed account (`@InfoEchoes`) and import its followings
 4. Start the REST API on `http://localhost:4000`
 5. Launch the tweet scanning scheduler (interval derived from config)
+
+### Local Redis (optional)
+
+A lightweight Redis container is available for local development via Docker Compose:
+
+```bash
+docker compose -f docker-compose.redis.yml up
+```
+
+By default the instance listens on `localhost:6379` without persistence, matching the `REDIS_URL` value in `.env.example`. Set `REDIS_TLS=true` when connecting to a TLS-enabled deployment.
 
 ### Running the Frontend
 
