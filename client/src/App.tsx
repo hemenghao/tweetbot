@@ -1,406 +1,443 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Layout,
   Typography,
   Input,
-  Space,
-  Button,
-  Table,
-  Tag,
-  Switch,
-  message,
-  Segmented,
-  Progress,
-  Tooltip,
-  Card,
   Row,
   Col,
+  Card,
+  Table,
+  Tag,
+  Progress,
+  Space,
+  Divider,
+  Statistic,
+  Empty,
 } from 'antd';
-import type { ColumnsType, TablePaginationConfig, TableProps } from 'antd/es/table';
-import {
-  fetchMonitoredUsers,
-  updateMonitoring,
-  batchUpdateMonitoring,
-  updateUserDetails,
-  scanFollowings,
-  triggerTweetScan,
-  fetchMonitoringConfig,
-} from './services/api';
-import { MonitoredUser, MonitoringConfig } from './types/index';
-import ImportUsersModal from './components/ImportUsersModal';
-import UserDetailDrawer from './components/UserDetailDrawer';
+import type { ColumnsType } from 'antd/es/table';
 
 const { Header, Content } = Layout;
+const { Title, Paragraph, Text } = Typography;
 
-const handleToDisplay = (handle: string) => (handle.startsWith('@') ? handle : `@${handle}`);
+type LeaderboardEntry = {
+  handle: string;
+  displayName: string;
+  tagline: string;
+  totalScore: number;
+  qualityScore: number;
+  volumeScore: number;
+  grade: 'S' | 'A+' | 'A' | 'B+' | 'B';
+  followers: number;
+  trend: 'rising' | 'steady' | 'cooling';
+  topics: string[];
+  lastNotableTweet: string;
+};
+
+const leaderboardData: LeaderboardEntry[] = [
+  {
+    handle: '@InfoEchoes',
+    displayName: 'Info Echoes',
+    tagline: '链上数据猎手，擅长把复杂模型翻译成一句话金句。',
+    totalScore: 92.4,
+    qualityScore: 89,
+    volumeScore: 78,
+    grade: 'S',
+    followers: 43800,
+    trend: 'rising',
+    topics: ['Layer2', 'On-chain Data', '市场情绪'],
+    lastNotableTweet: '对比 OP Stack 与 Polygon CDK 的模块化策略，引发 1.8 万次讨论。',
+  },
+  {
+    handle: '@WuBlockchain',
+    displayName: '吴说区块链',
+    tagline: '中文圈最稳定的新闻黑匣子，爆料速度拉满。',
+    totalScore: 90.1,
+    qualityScore: 87,
+    volumeScore: 74,
+    grade: 'S',
+    followers: 254000,
+    trend: 'steady',
+    topics: ['产业', '项目进展', '交易所'],
+    lastNotableTweet: '提前两小时披露某头部交易所的上币计划，点赞破万。',
+  },
+  {
+    handle: '@ChainTeaParty',
+    displayName: '链茶会',
+    tagline: '用 Meme 打开研究报告，内容质量稳得很。',
+    totalScore: 87.6,
+    qualityScore: 84,
+    volumeScore: 70,
+    grade: 'A+',
+    followers: 61200,
+    trend: 'rising',
+    topics: ['项目深度', '政策解读', '出海指南'],
+    lastNotableTweet: '《从 Meme 到现实业务：Blast 的生态破圈》系列阅读量 12 万。',
+  },
+  {
+    handle: '@DeFiLaoZhang',
+    displayName: 'DeFi 老张',
+    tagline: '链上收益猎人，精通风险提示。',
+    totalScore: 84.3,
+    qualityScore: 80,
+    volumeScore: 68,
+    grade: 'A+',
+    followers: 35800,
+    trend: 'steady',
+    topics: ['DeFi', '收益策略', '风险提醒'],
+    lastNotableTweet: '发布 Real Yield 调仓建议，帮助 3000+ 用户避坑。',
+  },
+  {
+    handle: '@SolDevKit',
+    displayName: 'SOL Dev Kit',
+    tagline: '写合约像讲段子，开发者最爱的梗王。',
+    totalScore: 82.9,
+    qualityScore: 78,
+    volumeScore: 69,
+    grade: 'A',
+    followers: 29100,
+    trend: 'rising',
+    topics: ['Solana', '开发教程', '安全审计'],
+    lastNotableTweet: '手把手拆解某空投合约漏洞，被官方转发。',
+  },
+  {
+    handle: '@NFTliang',
+    displayName: 'NFT 梁记者',
+    tagline: 'NFT 圈活百科，热度虽降但质量拉满。',
+    totalScore: 79.5,
+    qualityScore: 75,
+    volumeScore: 63,
+    grade: 'A',
+    followers: 18800,
+    trend: 'cooling',
+    topics: ['NFT', '文化叙事', '社区运营'],
+    lastNotableTweet: '盘点 Meme x NFT 联动案例，被多家项目引用。',
+  },
+  {
+    handle: '@L2Observer',
+    displayName: 'Layer2 观察员',
+    tagline: '专注 Rollup 数据，周报严格 55 开。',
+    totalScore: 77.8,
+    qualityScore: 73,
+    volumeScore: 62,
+    grade: 'B+',
+    followers: 22300,
+    trend: 'steady',
+    topics: ['Rollup', '跨链桥', '生态研报'],
+    lastNotableTweet: '发布跨链桥风险矩阵，被安全团队收藏。',
+  },
+  {
+    handle: '@CryptoMindGarden',
+    displayName: '加密心流花园',
+    tagline: '情绪面捕手，擅长找到下一波 Narrative。',
+    totalScore: 76.1,
+    qualityScore: 71,
+    volumeScore: 61,
+    grade: 'B+',
+    followers: 16700,
+    trend: 'rising',
+    topics: ['叙事追踪', '情绪指标', '投研框架'],
+    lastNotableTweet: '《AI x 链游》线索合集被多位 KOL 转发。',
+  },
+  {
+    handle: '@AlphaRadar',
+    displayName: 'Alpha 雷达站',
+    tagline: '量化信号工厂，图表控福音。',
+    totalScore: 74.2,
+    qualityScore: 69,
+    volumeScore: 59,
+    grade: 'B',
+    followers: 9500,
+    trend: 'steady',
+    topics: ['量化指标', '情绪图', '链上监控'],
+    lastNotableTweet: '推出免费监测仪表盘，24 小时内吸粉 2k。',
+  },
+  {
+    handle: '@DAOHotpot',
+    displayName: 'DAO 火锅局',
+    tagline: '社区治理提案安利官。',
+    totalScore: 72.5,
+    qualityScore: 67,
+    volumeScore: 58,
+    grade: 'B',
+    followers: 14200,
+    trend: 'cooling',
+    topics: ['DAO', '治理', '社区工具'],
+    lastNotableTweet: '点评 ENS 治理争议，引发多语种延伸讨论。',
+  },
+];
+
+const scoreBuckets = [
+  { label: '90 分以上', min: 90, max: 101 },
+  { label: '80 - 89', min: 80, max: 90 },
+  { label: '70 - 79', min: 70, max: 80 },
+  { label: '70 分以下', min: 0, max: 70 },
+];
+
+const formatFollowers = (value: number) =>
+  value >= 10000 ? `${(value / 10000).toFixed(1)} 万` : value.toLocaleString();
 
 const App = () => {
-  const [users, setUsers] = useState<MonitoredUser[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [pagination, setPagination] = useState<TablePaginationConfig>({ current: 1, pageSize: 10 });
-  const [sortState, setSortState] = useState<{ sortBy: string; sortOrder: 'asc' | 'desc' }>(
-    { sortBy: 'quality_rating.score', sortOrder: 'desc' }
+  const [query, setQuery] = useState('');
+  const [selectedHandle, setSelectedHandle] = useState(leaderboardData[0]?.handle ?? '');
+
+  const filteredData = useMemo(() => {
+    const trimmed = query.trim().toLowerCase();
+    const base = [...leaderboardData];
+    if (!trimmed) {
+      return base.sort((a, b) => b.totalScore - a.totalScore);
+    }
+    return base
+      .filter((entry) =>
+        [entry.handle, entry.displayName, entry.topics.join(' ')].some((field) =>
+          field.toLowerCase().includes(trimmed)
+        )
+      )
+      .sort((a, b) => b.totalScore - a.totalScore);
+  }, [query]);
+
+  useEffect(() => {
+    if (!filteredData.length) {
+      setSelectedHandle('');
+      return;
+    }
+    const stillVisible = filteredData.some((item) => item.handle === selectedHandle);
+    if (!stillVisible) {
+      setSelectedHandle(filteredData[0].handle);
+    }
+  }, [filteredData, selectedHandle]);
+
+  const bucketStats = useMemo(() => {
+    const total = filteredData.length || 1;
+    return scoreBuckets.map((bucket) => {
+      const count = filteredData.filter(
+        (item) => item.totalScore >= bucket.min && item.totalScore < bucket.max
+      ).length;
+      return {
+        ...bucket,
+        count,
+        percent: Math.round((count / total) * 100),
+      };
+    });
+  }, [filteredData]);
+
+  const columns: ColumnsType<LeaderboardEntry> = useMemo(
+    () => [
+      {
+        title: '排名',
+        dataIndex: 'rank',
+        width: 70,
+        render: (_value, _record, index) => <Text strong>{index + 1}</Text>,
+      },
+      {
+        title: 'KOL',
+        dataIndex: 'displayName',
+        render: (_value, record) => (
+          <Space direction="vertical" size={0}>
+            <Text strong>{record.displayName}</Text>
+            <Text type="secondary">{record.handle}</Text>
+          </Space>
+        ),
+      },
+      {
+        title: '综合指数',
+        dataIndex: 'totalScore',
+        width: 140,
+        render: (_value, record) => (
+          <Space direction="vertical" size={0}>
+            <Text strong>{record.totalScore.toFixed(1)}</Text>
+            <Text type="secondary">{record.trend === 'rising' ? '🔥 升温' : record.trend === 'steady' ? '↔️ 稳定' : '🧊 降温'}</Text>
+          </Space>
+        ),
+      },
+      {
+        title: '评分结构 (55/45)',
+        dataIndex: 'qualityScore',
+        render: (_value, record) => (
+          <div style={{ minWidth: 160 }}>
+            <div style={{ fontSize: 12, marginBottom: 4 }}>
+              <Text>质量 {record.qualityScore}</Text>
+              <Text style={{ marginLeft: 12 }}>产出 {record.volumeScore}</Text>
+            </div>
+            <Progress
+              percent={Math.round((record.qualityScore / (record.qualityScore + record.volumeScore)) * 100)}
+              showInfo={false}
+              strokeColor="#597ef7"
+            />
+          </div>
+        ),
+      },
+      {
+        title: '等级',
+        dataIndex: 'grade',
+        width: 100,
+        render: (_value, record) => (
+          <Tag color={record.grade === 'S' ? 'gold' : record.grade.includes('A') ? 'geekblue' : 'cyan'}>
+            {record.grade}
+          </Tag>
+        ),
+      },
+      {
+        title: '一句话锐评',
+        dataIndex: 'tagline',
+        render: (value: string) => <Text>{value}</Text>,
+      },
+    ],
+    []
   );
-  const [importVisible, setImportVisible] = useState(false);
-  const [activeUser, setActiveUser] = useState<MonitoredUser | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [scanHandle, setScanHandle] = useState('InfoEchoes');
-  const [config, setConfig] = useState<MonitoringConfig | null>(null);
-  const [actionsLoading, setActionsLoading] = useState(false);
 
-  const fetchConfig = useCallback(async () => {
-    try {
-      const data = await fetchMonitoringConfig();
-      setConfig(data);
-    } catch (error) {
-      console.error(error);
-    }
-  }, []);
-
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = {
-        search: search || undefined,
-        status: statusFilter === 'all' ? undefined : statusFilter,
-        limit: pagination.pageSize,
-        offset: ((pagination.current || 1) - 1) * (pagination.pageSize || 10),
-        sortBy: sortState.sortBy,
-        sortOrder: sortState.sortOrder,
-      };
-      const response = await fetchMonitoredUsers(params);
-      setUsers(response.items);
-      setTotal(response.total);
-      setSelectedRowKeys((prev) => prev.filter((key) => response.items.some((item) => item._id === key)));
-    } catch (error) {
-      console.error(error);
-      message.error('Failed to load monitored users');
-    } finally {
-      setLoading(false);
-    }
-  }, [search, statusFilter, pagination.current, pagination.pageSize, sortState.sortBy, sortState.sortOrder]);
-
-  useEffect(() => {
-    fetchConfig();
-  }, [fetchConfig]);
-
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
-
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    setPagination((prev) => ({ ...prev, current: 1 }));
-  };
-
-  const handleStatusChange = (value: 'all' | 'active' | 'inactive') => {
-    setStatusFilter(value);
-    setPagination((prev) => ({ ...prev, current: 1 }));
-  };
-
-  const handleTableChange: TableProps<MonitoredUser>['onChange'] = (
-    newPagination,
-    _filters,
-    sorter
-  ) => {
-    setPagination(newPagination);
-    if (!Array.isArray(sorter) && sorter.order) {
-      const map: Record<string, string> = {
-        quality_score: 'quality_rating.score',
-        followers: 'profile.followers_count',
-        last_scan: 'stats.last_scan_time',
-      };
-      const fieldKey = (sorter.columnKey as string) || 'quality_score';
-      const sortBy = map[fieldKey] || 'quality_rating.score';
-      const sortOrder = sorter.order === 'ascend' ? 'asc' : 'desc';
-      setSortState({ sortBy, sortOrder });
-    }
-  };
-
-  const toggleMonitoring = async (user: MonitoredUser, isActive: boolean) => {
-    try {
-      const updated = await updateMonitoring(user._id, { is_active: isActive });
-      setUsers((prev) => prev.map((item) => (item._id === updated._id ? { ...item, monitoring: updated.monitoring } : item)));
-      message.success(`User ${isActive ? 'activated' : 'deactivated'}`);
-    } catch (error) {
-      console.error(error);
-      message.error('Failed to update monitoring');
-    }
-  };
-
-  const handleBatchToggle = async (isActive: boolean) => {
-    if (!selectedRowKeys.length) {
-      message.info('Select at least one user');
-      return;
-    }
-    try {
-      await batchUpdateMonitoring({ userIds: selectedRowKeys as string[], is_active: isActive });
-      message.success(`Updated ${selectedRowKeys.length} users`);
-      await loadUsers();
-    } catch (error) {
-      console.error(error);
-      message.error('Batch update failed');
-    }
-  };
-
-  const openDrawer = (user: MonitoredUser) => {
-    setActiveUser(user);
-    setDrawerOpen(true);
-  };
-
-  const handleDrawerSave = async (values: { tags: string[]; notes?: string }) => {
-    if (!activeUser) return;
-    try {
-      const updated = await updateUserDetails(activeUser._id, values);
-      setUsers((prev) => prev.map((item) => (item._id === updated._id ? updated : item)));
-      setActiveUser(updated);
-      message.success('User updated');
-    } catch (error) {
-      console.error(error);
-      message.error('Failed to update user');
-    }
-  };
-
-  const handleScanFollowings = async () => {
-    if (!scanHandle) {
-      message.warning('Enter a Twitter handle to scan');
-      return;
-    }
-    try {
-      setActionsLoading(true);
-      await scanFollowings(scanHandle);
-      message.success('Followings scanned');
-      await loadUsers();
-    } catch (error) {
-      console.error(error);
-      message.error('Failed to scan followings');
-    } finally {
-      setActionsLoading(false);
-    }
-  };
-
-  const handleScanTweets = async (handle?: string) => {
-    try {
-      setActionsLoading(true);
-      await triggerTweetScan(handle);
-      message.success(handle ? `Scan triggered for ${handleToDisplay(handle)}` : 'Scan triggered for active users');
-      await loadUsers();
-    } catch (error) {
-      console.error(error);
-      message.error('Failed to trigger scan');
-    } finally {
-      setActionsLoading(false);
-    }
-  };
-
-  const columns: ColumnsType<MonitoredUser> = useMemo(() => [
-    {
-      title: 'User',
-      dataIndex: 'twitter_handle',
-      key: 'user',
-      render: (_value, record) => (
-        <Space direction="vertical" size={0}>
-          <Typography.Text strong>{handleToDisplay(record.twitter_handle)}</Typography.Text>
-          <Typography.Text type="secondary">{record.display_name}</Typography.Text>
-        </Space>
-      ),
-    },
-    {
-      title: 'Quality',
-      key: 'quality_score',
-      sorter: true,
-      sortOrder: sortState.sortBy === 'quality_rating.score' ? (sortState.sortOrder === 'asc' ? 'ascend' : 'descend') : undefined,
-      render: (_value, record) => (
-        <div>
-          <Progress percent={Math.round(record.quality_rating.score)} size="small" status={record.quality_rating.score >= 70 ? 'success' : record.quality_rating.score >= 40 ? 'normal' : 'exception'} />
-          <Typography.Text type="secondary">
-            Acc: {record.quality_rating.accuracy} · Inf: {record.quality_rating.influence} · Time: {record.quality_rating.timeliness}
-          </Typography.Text>
-        </div>
-      ),
-    },
-    {
-      title: 'Followers',
-      dataIndex: ['profile', 'followers_count'],
-      key: 'followers',
-      sorter: true,
-      sortOrder: sortState.sortBy === 'profile.followers_count' ? (sortState.sortOrder === 'asc' ? 'ascend' : 'descend') : undefined,
-      render: (value) => value?.toLocaleString() ?? '-',
-    },
-    {
-      title: 'Topics',
-      key: 'topics',
-      render: (_value, record) => (
-        <Space size={[4, 4]} wrap>
-          {record.main_topics.length ? (
-            record.main_topics.map((topic) => (
-              <Tag key={topic} color="geekblue">
-                {topic}
-              </Tag>
-            ))
-          ) : (
-            <Typography.Text type="secondary">None</Typography.Text>
-          )}
-        </Space>
-      ),
-    },
-    {
-      title: 'Recent Mentions',
-      key: 'mentions',
-      render: (_value, record) => (
-        <Space size={[4, 4]} wrap>
-          {record.recent_mentions.length ? (
-            record.recent_mentions.slice(0, 3).map((mention) => (
-              <Tag key={mention.symbol} color="blue">
-                {mention.symbol} · {mention.mention_count}
-              </Tag>
-            ))
-          ) : (
-            <Typography.Text type="secondary">None</Typography.Text>
-          )}
-        </Space>
-      ),
-    },
-    {
-      title: 'Last Scan',
-      dataIndex: ['stats', 'last_scan_time'],
-      key: 'last_scan',
-      sorter: true,
-      sortOrder: sortState.sortBy === 'stats.last_scan_time' ? (sortState.sortOrder === 'asc' ? 'ascend' : 'descend') : undefined,
-      render: (value) => (value ? new Date(value).toLocaleString() : 'N/A'),
-    },
-    {
-      title: 'Monitoring',
-      key: 'monitoring',
-      render: (_value, record) => (
-        <Switch
-          checked={record.monitoring.is_active}
-          onChange={(checked) => toggleMonitoring(record, checked)}
-        />
-      ),
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_value, record) => (
-        <Space>
-          <Button type="link" onClick={() => openDrawer(record)}>
-            Details
-          </Button>
-          <Tooltip title="Trigger tweet scan">
-            <Button size="small" onClick={() => handleScanTweets(record.twitter_handle)}>
-              Scan
-            </Button>
-          </Tooltip>
-        </Space>
-      ),
-    },
-  ], [sortState.sortBy, sortState.sortOrder]);
+  const activeEntry = useMemo(() => {
+    if (!filteredData.length) return null;
+    return filteredData.find((item) => item.handle === selectedHandle) ?? filteredData[0];
+  }, [filteredData, selectedHandle]);
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Header style={{ background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
-        <Space align="center" size="large">
-          <Typography.Title level={3} style={{ margin: 0 }}>
-            Twitter User Monitoring
-          </Typography.Title>
-          <Tag color="gold">Crypto Intelligence</Tag>
-        </Space>
+    <Layout style={{ minHeight: '100vh', background: '#0d0d0d' }}>
+      <Header style={{ background: 'transparent', padding: '24px 48px' }}>
+        <Title style={{ color: 'white', marginBottom: 0 }} level={3}>
+          加密货币百大 KOL 速查台
+        </Title>
+        <Paragraph style={{ color: 'rgba(255,255,255,0.65)', marginBottom: 0 }}>
+          「从夯到拉锐评」节目实时预告：综合指数 55 开，榜单随时更新。
+        </Paragraph>
       </Header>
-      <Content style={{ padding: 24 }}>
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <Row gutter={16}>
-            <Col span={12} sm={12} md={8} xl={6}>
-              <Card bordered={false}>
-                <Typography.Text type="secondary">Monitored Users</Typography.Text>
-                <Typography.Title level={3}>{total}</Typography.Title>
-              </Card>
-            </Col>
-            {config && (
-              <Col span={12} sm={12} md={8} xl={6}>
-                <Card bordered={false}>
-                  <Typography.Text type="secondary">Scan Interval</Typography.Text>
-                  <Typography.Title level={3}>{config.scan_settings.scan_interval} min</Typography.Title>
-                </Card>
-              </Col>
-            )}
-          </Row>
+      <Content style={{ padding: '24px 48px' }}>
+        <style>{`
+          .kol-table .selected-row td {
+            background: #f0f5ff !important;
+          }
+          .kol-table .ant-table-tbody > tr:hover > td {
+            background: #e6f4ff !important;
+          }
+        `}</style>
+        <Row gutter={[24, 24]}>
+          <Col span={24}>
+            <Card title="评分分布" bordered={false} style={{ borderRadius: 16 }}>
+              <Row gutter={[16, 16]}>
+                {bucketStats.map((bucket) => (
+                  <Col xs={24} sm={12} md={6} key={bucket.label}>
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      <Text strong>{bucket.label}</Text>
+                      <Progress percent={bucket.percent} strokeColor="#52c41a" />
+                      <Text type="secondary">{bucket.count} 位 KOL</Text>
+                    </Space>
+                  </Col>
+                ))}
+              </Row>
+            </Card>
+          </Col>
 
-          <Space size="middle" wrap>
-            <Input.Search
-              placeholder="Search by handle, display name or tags"
-              allowClear
-              onSearch={handleSearch}
-              style={{ width: 300 }}
-            />
-            <Segmented
-              value={statusFilter}
-              options={[
-                { label: 'All', value: 'all' },
-                { label: 'Active', value: 'active' },
-                { label: 'Inactive', value: 'inactive' },
-              ]}
-              onChange={(value) => handleStatusChange(value as 'all' | 'active' | 'inactive')}
-            />
-            <Space>
-              <Input
-                value={scanHandle}
-                onChange={(event) => setScanHandle(event.target.value)}
-                placeholder="Handle for following scan"
-                prefix="@"
-                style={{ width: 220 }}
-              />
-              <Button type="primary" loading={actionsLoading} onClick={handleScanFollowings}>
-                Scan Followings
-              </Button>
-            </Space>
-            <Button onClick={() => handleScanTweets()} loading={actionsLoading}>
-              Scan Active Users
-            </Button>
-            <Button type="dashed" onClick={() => setImportVisible(true)}>
-              Import Users
-            </Button>
-            <Button onClick={() => handleBatchToggle(true)} disabled={!selectedRowKeys.length}>
-              Activate Selected
-            </Button>
-            <Button onClick={() => handleBatchToggle(false)} disabled={!selectedRowKeys.length}>
-              Deactivate Selected
-            </Button>
-          </Space>
+          <Col span={24}>
+            <Card bordered={false} style={{ borderRadius: 16 }}>
+              <Space direction="vertical" style={{ width: '100%' }} size="large">
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Title level={4} style={{ marginBottom: 0 }}>
+                    榜单速览
+                  </Title>
+                  <Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                    输入 @或关键词即可筛选，点击任意行查看 KOL 速查档案。
+                  </Paragraph>
+                  <Input.Search
+                    placeholder="输入 @handle / 昵称 / 关键词"
+                    allowClear
+                    size="large"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
+                </Space>
+                <Table
+                  className="kol-table"
+                  rowKey="handle"
+                  columns={columns}
+                  dataSource={filteredData}
+                  pagination={false}
+                  locale={{ emptyText: <Empty description="暂无匹配的 KOL" /> }}
+                  onRow={(record) => ({
+                    onClick: () => setSelectedHandle(record.handle),
+                  })}
+                  rowClassName={(record) => (record.handle === selectedHandle ? 'selected-row' : '')}
+                />
+              </Space>
+            </Card>
+          </Col>
 
-          <Table<MonitoredUser>
-            rowKey="_id"
-            loading={loading}
-            rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
-            columns={columns}
-            dataSource={users}
-            pagination={{
-              ...pagination,
-              total,
-              showSizeChanger: true,
-              pageSizeOptions: ['10', '20', '50'],
-            }}
-            onChange={handleTableChange}
-          />
-        </Space>
+          <Col span={24}>
+            <Card bordered={false} style={{ borderRadius: 16 }}>
+              {activeEntry ? (
+                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                  <Space align="center" style={{ justifyContent: 'space-between', width: '100%' }}>
+                    <div>
+                      <Title level={4} style={{ marginBottom: 4 }}>
+                        {activeEntry.displayName}
+                      </Title>
+                      <Text type="secondary">{activeEntry.handle}</Text>
+                    </div>
+                    <Tag color={activeEntry.grade === 'S' ? 'gold' : activeEntry.grade.includes('A') ? 'geekblue' : 'cyan'}>
+                      {activeEntry.grade} 等级
+                    </Tag>
+                  </Space>
+                  <Paragraph>{activeEntry.tagline}</Paragraph>
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} md={8}>
+                      <Card size="small" bordered={false} style={{ background: '#f5f5f5' }}>
+                        <Statistic title="综合指数" value={activeEntry.totalScore} precision={1} suffix="/100" />
+                      </Card>
+                    </Col>
+                    <Col xs={24} md={8}>
+                      <Card size="small" bordered={false} style={{ background: '#f5f5f5' }}>
+                        <Statistic title="内容质量得分" value={activeEntry.qualityScore} precision={0} />
+                      </Card>
+                    </Col>
+                    <Col xs={24} md={8}>
+                      <Card size="small" bordered={false} style={{ background: '#f5f5f5' }}>
+                        <Statistic title="活跃度得分" value={activeEntry.volumeScore} precision={0} />
+                      </Card>
+                    </Col>
+                  </Row>
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} md={8}>
+                      <Card size="small" bordered={false} style={{ background: '#f5f5f5' }}>
+                        <Statistic title="关注者" value={formatFollowers(activeEntry.followers)} />
+                      </Card>
+                    </Col>
+                    <Col xs={24} md={16}>
+                      <Card size="small" bordered={false} style={{ background: '#f5f5f5' }}>
+                        <Text strong>评分结构</Text>
+                        <Paragraph style={{ marginTop: 8, marginBottom: 0 }}>
+                          质量占比 {Math.round((activeEntry.qualityScore / (activeEntry.qualityScore + activeEntry.volumeScore)) * 100)}%，产出占比 {100 - Math.round((activeEntry.qualityScore / (activeEntry.qualityScore + activeEntry.volumeScore)) * 100)}%。
+                        </Paragraph>
+                        <Progress
+                          percent={Math.round((activeEntry.qualityScore / (activeEntry.qualityScore + activeEntry.volumeScore)) * 100)}
+                          showInfo={false}
+                          strokeColor="#2f54eb"
+                        />
+                      </Card>
+                    </Col>
+                  </Row>
+                  <Divider style={{ margin: '16px 0' }} />
+                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                    <div>
+                      <Text strong>擅长赛道</Text>
+                      <Space wrap style={{ marginTop: 8 }}>
+                        {activeEntry.topics.map((topic) => (
+                          <Tag key={topic} color="processing">
+                            #{topic}
+                          </Tag>
+                        ))}
+                      </Space>
+                    </div>
+                    <div>
+                      <Text strong>最近高光</Text>
+                      <Paragraph style={{ marginTop: 8 }}>{activeEntry.lastNotableTweet}</Paragraph>
+                    </div>
+                  </Space>
+                </Space>
+              ) : (
+                <Empty description="请从榜单中选择一位 KOL" />
+              )}
+            </Card>
+          </Col>
+        </Row>
       </Content>
-
-      <ImportUsersModal
-        open={importVisible}
-        onClose={() => setImportVisible(false)}
-        onSuccess={loadUsers}
-      />
-
-      <UserDetailDrawer
-        user={activeUser}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        onSave={handleDrawerSave}
-      />
     </Layout>
   );
 };
