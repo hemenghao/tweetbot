@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "fetch:instruments": "ts-node src/scripts/fetchTradableInstruments.ts"
   },
   "dependencies": {
     "axios": "^1.7.2",
